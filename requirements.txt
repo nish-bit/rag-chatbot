@@ -5,6 +5,8 @@ langchain-groq
 pypdf
 transformers
 SpeechRecognition
+pytesseract
+
 
 
 
