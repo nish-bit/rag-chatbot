@@ -42,75 +42,87 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN + SIGNUP -------------------
+# ---------------- CHATBOT FUNCTIONALITY -------------------
 
-# ---------------- LOGIN + SIGNUP -------------------
+st.title("🤖 Secure RAG Chatbot")
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+st.info("👋 Welcome, guest! You can start chatting after uploading a PDF.")
 
-if "signup_mode" not in st.session_state:
-    st.session_state.signup_mode = False
+user_email = "guest@example.com"
 
-if "reset_mode" not in st.session_state:
-    st.session_state.reset_mode = False
+if "user_messages" not in st.session_state:
+    st.session_state.user_messages = {}
+if user_email not in st.session_state.user_messages:
+    st.session_state.user_messages[user_email] = []
 
-if not st.session_state.authenticated:
-    st.title("🔐 Login to Access Chatbot")
-    mode = st.radio("Choose mode:", ["Login", "Sign Up", "Reset Password"])
+if "feedback" not in st.session_state:
+    st.session_state.feedback = {}
 
-    users = load_users()
+for idx, msg in enumerate(st.session_state.user_messages[user_email]):
+    with st.chat_message(msg['role']):
+        st.markdown(msg['content'])
+        if msg['role'] == 'assistant':
+            col1, col2 = st.columns(2)
+            with col1:
+                st.button("👍", key=f"like_{idx}")
+            with col2:
+                st.button("👎", key=f"dislike_{idx}")
 
-    if mode == "Sign Up":
-        new_email = st.text_input("New Email")
-        new_password = st.text_input("New Password", type="password")
-        if st.button("Create Account"):
-            if new_email and new_password:
-                email_key = new_email.strip().lower()
-                if email_key in [e.lower() for e in users]:
-                    st.warning("⚠️ Email already exists.")
-                else:
-                    users[new_email] = new_password
-                    save_users(users)
-                    st.success("✅ Account created! Please login.")
-                    st.experimental_rerun()
-            else:
-                st.warning("Please enter both email and password.")
+uploaded_files = st.file_uploader("📄 Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
 
-    elif mode == "Reset Password":
-        reset_email = st.text_input("Enter your registered email")
-        new_reset_password = st.text_input("Enter new password", type="password")
-        if st.button("Reset Password"):
-            reset_email_key = reset_email.strip().lower()
-            matched_email = next((e for e in users if e.lower() == reset_email_key), None)
-            if matched_email:
-                users[matched_email] = new_reset_password
-                save_users(users)
-                st.success("✅ Password reset successfully. Please login.")
-                st.experimental_rerun()
-            else:
-                st.error("❌ Email not found.")
+@st.cache_resource(show_spinner="🔄 Indexing content...")
+def create_vectorstore_from_files(pdf_files):
+    try:
+        loaders = []
+        for file in pdf_files:
+            path = f"temp_{file.name}"
+            with open(path, "wb") as f:
+                f.write(file.read())
+            loaders.append(PyPDFLoader(path))
 
-    else:
-        email_input = st.text_input("Email")
-        password_input = st.text_input("Password", type="password")
-        if st.button("Login"):
-            email_key = email_input.strip().lower()
-            password = password_input.strip()
-            email_matched = None
-            for stored_email in users:
-                if stored_email.lower() == email_key:
-                    email_matched = stored_email
-                    break
-            if email_matched and users[email_matched] == password:
-                st.session_state.authenticated = True
-                st.session_state.user_email = email_matched
-                st.experimental_rerun()
-            else:
-                st.error("❌ Invalid email or password")
-    st.stop()
+        index = VectorstoreIndexCreator(
+            embedding=HuggingFaceEmbeddings(model_name="all-MiniLM-L12-v2"),
+            text_splitter=RecursiveCharacterTextSplitter(chunk_size=100000, chunk_overlap=100)
+        ).from_loaders(loaders)
+        return index.vectorstore
+    except Exception as e:
+        st.error(f"Vectorstore creation error: {e}")
+        return None
 
-user_email = st.session_state.user_email
+prompt = st.chat_input("💬 Ask your question from the uploaded files")
+
+if prompt:
+    if not uploaded_files:
+        st.warning("📌 Please upload at least one PDF to proceed.")
+        st.stop()
+
+    st.chat_message("user").markdown(prompt)
+    st.session_state.user_messages[user_email].append({"role": "user", "content": prompt})
+
+    try:
+        vectorstore = create_vectorstore_from_files(uploaded_files)
+        if vectorstore is None:
+            raise Exception("Vectorstore is empty")
+
+        groq_api_key = "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"
+        chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
+
+        chain = RetrievalQA.from_chain_type(
+            llm=chat_model,
+            chain_type="stuff",
+            retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
+            return_source_documents=True
+        )
+
+        result = chain({"query": prompt})
+        response = result["result"]
+
+        st.chat_message("assistant").markdown(response)
+        st.session_state.user_messages[user_email].append({"role": "assistant", "content": response})
+
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)}")
+
 
 # ---------------- APP HEADER -------------------
 
