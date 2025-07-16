@@ -18,7 +18,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.indexes import VectorstoreIndexCreator
 
-# ---------------- GOOGLE LOGIN AUTH -------------------
+# ---------------- PAGE CONFIG + STYLE -------------------
 
 st.set_page_config(page_title="Secure RAG Chatbot", page_icon="🤖", layout="wide")
 st.markdown("""
@@ -41,28 +41,48 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-user = getattr(st, "user", None)
-if user is None or not hasattr(user, "email"):
-    class MockUser:
-        email = "test@example.com"
-    user = MockUser()
+# ---------------- LOGIN -------------------
 
-ALLOWED_USERS = ["nishant@example.com", "user1@example.com", "test@example.com"]
+CREDENTIALS = {
+    "nishant@example.com": "123456",
+    "user1@example.com": "abcdef",
+    "test@example.com": "test123"
+}
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Login to Access Chatbot")
+    email_input = st.text_input("Email")
+    password_input = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if email_input in CREDENTIALS and CREDENTIALS[email_input] == password_input:
+            st.session_state.authenticated = True
+            st.session_state.user_email = email_input
+            st.experimental_rerun()
+        else:
+            st.error("❌ Invalid email or password")
+    st.stop()
+
+user_email = st.session_state.user_email
+ALLOWED_USERS = list(CREDENTIALS.keys())
 ADMIN_USERS = ["nishant@example.com"]
 
-if user.email.lower() not in [email.lower() for email in ALLOWED_USERS]:
-    st.error(f"❌ Access denied for {user.email}")
+if user_email.lower() not in [email.lower() for email in ALLOWED_USERS]:
+    st.error(f"❌ Access denied for {user_email}")
     st.stop()
+
+# ---------------- APP HEADER -------------------
 
 st.title("🤖 Secure RAG Chatbot")
 if st.button("🚪 Logout"):
     st.session_state.clear()
-    st.query_params["logout"] = "1"
-    st.stop()
+    st.experimental_rerun()
 
 # ---------------- ADMIN PANEL -------------------
 
-if user.email.lower() in [email.lower() for email in ADMIN_USERS]:
+if user_email.lower() in [email.lower() for email in ADMIN_USERS]:
     with st.sidebar:
         st.subheader("👑 Admin Panel")
         if "user_messages" in st.session_state:
@@ -78,13 +98,13 @@ if user.email.lower() in [email.lower() for email in ADMIN_USERS]:
 
 if "user_messages" not in st.session_state:
     st.session_state.user_messages = {}
-if user.email not in st.session_state.user_messages:
-    st.session_state.user_messages[user.email] = []
+if user_email not in st.session_state.user_messages:
+    st.session_state.user_messages[user_email] = []
 
 if "feedback" not in st.session_state:
     st.session_state.feedback = {}
 
-for idx, msg in enumerate(st.session_state.user_messages[user.email]):
+for idx, msg in enumerate(st.session_state.user_messages[user_email]):
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         if msg['role'] == 'assistant':
@@ -131,7 +151,7 @@ if prompt:
         st.stop()
 
     st.chat_message("user").markdown(prompt)
-    st.session_state.user_messages[user.email].append({"role": "user", "content": prompt})
+    st.session_state.user_messages[user_email].append({"role": "user", "content": prompt})
 
     try:
         vectorstore = create_vectorstore_from_files(uploaded_files)
@@ -152,23 +172,23 @@ if prompt:
         response = result["result"]
 
         st.chat_message("assistant").markdown(response)
-        st.session_state.user_messages[user.email].append({"role": "assistant", "content": response})
+        st.session_state.user_messages[user_email].append({"role": "assistant", "content": response})
 
         # ---------------- SAVE CHAT TO PDF -------------------
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         chat_lines = [
             f"{m['role'].capitalize()}: {m['content']}"
-            for m in st.session_state.user_messages[user.email]
+            for m in st.session_state.user_messages[user_email]
         ]
         uploaded_names = ", ".join([file.name for file in uploaded_files]) if uploaded_files else "None"
         model_used = "Groq - llama3-8b-8192"
 
-        pdf_filename = f"chat_history_{user.email.replace('@', '_at_')}.pdf"
+        pdf_filename = f"chat_history_{user_email.replace('@', '_at_')}.pdf"
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
 
-        pdf.cell(0, 10, f"Chat history for {user.email}", ln=True)
+        pdf.cell(0, 10, f"Chat history for {user_email}", ln=True)
         pdf.cell(0, 10, f"Generated at: {now}", ln=True)
         pdf.cell(0, 10, f"Model Used: {model_used}", ln=True)
         pdf.cell(0, 10, f"Files Uploaded: {uploaded_names}", ln=True)
@@ -215,6 +235,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
