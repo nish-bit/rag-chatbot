@@ -69,7 +69,7 @@ for idx, msg in enumerate(st.session_state.user_messages[user.email]):
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         if msg['role'] == 'assistant':
-            col1, col2, col3, col4 = st.columns([1, 1, 6, 1])
+            col1, col2, col3, col4 = st.columns([1, 1, 5, 1])
             with col1:
                 if st.button("👍", key=f"like_{idx}"):
                     st.session_state.feedback[idx] = "like"
@@ -81,7 +81,7 @@ for idx, msg in enumerate(st.session_state.user_messages[user.email]):
             with col3:
                 st.text_input("💬 Comment", key=f"comment_{idx}")
             with col4:
-                st.code(msg['content'], language='text')
+                st.button("📋 Copy", on_click=st.code, args=(msg['content'],), key=f"copy_{idx}")
 
 # ---------------- FILE UPLOAD -------------------
 
@@ -210,6 +210,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
