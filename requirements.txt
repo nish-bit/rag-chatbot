@@ -1,8 +1,10 @@
 streamlit
 langchain
-langchain-groq
 langchain-community
+langchain-groq
 openai
 sentence-transformers
+pypdf
+
 
 
