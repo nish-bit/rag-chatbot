@@ -5,7 +5,6 @@ import streamlit as st
 import base64
 
 from langchain_groq import ChatGroq
-from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -37,14 +36,6 @@ st.success(f"✅ Logged in as: {user.email}")
 if st.button("🚪 Logout"):
     st.session_state.clear()
     st.experimental_rerun()
-
-# ---------------- MODEL SELECTION -------------------
-
-model_choice = st.sidebar.radio(
-    "Choose your LLM:",
-    ("Groq - LLaMA 3", "OpenAI - GPT-3.5"),
-    index=0
-)
 
 # ---------------- ADMIN PANEL -------------------
 
@@ -109,12 +100,10 @@ if prompt:
         if vectorstore is None:
             raise Exception("Vectorstore is empty")
 
-        if model_choice == "Groq - LLaMA 3":
-            groq_api_key = os.getenv("GROQ_API_KEY") or "your_groq_key"
-            chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
-        else:
-            openai_api_key = os.getenv("OPENAI_API_KEY") or "your_openai_key"
-            chat_model = ChatOpenAI(api_key=openai_api_key, model_name="gpt-3.5-turbo")
+        # Only use Groq
+        groq_api_key = os.getenv("GROQ_API_KEY") or "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"
+"
+        chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
 
         chain = RetrievalQA.from_chain_type(
             llm=chat_model,
