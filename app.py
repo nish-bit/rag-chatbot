@@ -38,7 +38,7 @@ st.title("🤖 Secure RAG Chatbot")
 st.success(f"✅ Logged in as: {user.email}")
 if st.button("🚪 Logout"):
     st.session_state.clear()
-    st.experimental_set_query_params(logout=1)
+    st.query_params["logout"] = "1"
     st.stop()
 
 # ---------------- ADMIN PANEL -------------------
