@@ -45,9 +45,11 @@ st.markdown("""
 # ---------------- LOGIN -------------------
 
 CREDENTIALS = {
-    "nishant@example.com": "123456",
-    "user1@example.com": "abcdef",
-    "test@example.com": "test123"
+    "john.doe@gmail.com": "john123",
+    "jane.smith@yahoo.com": "jane456",
+    "info@example.com": "info789",
+    "test.user@hotmail.com": "test000",
+    "admin@company.com": "admin999"
 }
 
 if "authenticated" not in st.session_state:
@@ -70,7 +72,7 @@ if not st.session_state.authenticated:
 
 user_email = st.session_state.user_email
 ALLOWED_USERS = list(CREDENTIALS.keys())
-ADMIN_USERS = ["nishant@example.com"]
+ADMIN_USERS = ["admin@company.com"]
 
 if user_email.lower() not in [email.lower() for email in ALLOWED_USERS]:
     st.error(f"❌ Access denied for {user_email}")
@@ -238,6 +240,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
