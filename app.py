@@ -1,3 +1,4 @@
+
 import os
 import warnings
 import logging
@@ -57,9 +58,11 @@ if not st.session_state.authenticated:
     email_input = st.text_input("Email")
     password_input = st.text_input("Password", type="password")
     if st.button("Login"):
-        if email_input in CREDENTIALS and CREDENTIALS[email_input] == password_input:
+        email_key = email_input.strip().lower()
+        password = password_input.strip()
+        if email_key in CREDENTIALS and CREDENTIALS[email_key] == password:
             st.session_state.authenticated = True
-            st.session_state.user_email = email_input
+            st.session_state.user_email = email_key
             st.experimental_rerun()
         else:
             st.error("❌ Invalid email or password")
@@ -235,7 +238,6 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
-
 
 
 
