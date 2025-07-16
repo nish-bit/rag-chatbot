@@ -7,7 +7,7 @@ transformers
 SpeechRecognition
 pytesseract
 langchain-community
-
+sentence-transformers
 
 
 
