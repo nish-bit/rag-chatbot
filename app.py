@@ -11,7 +11,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import urllib.parse
-import speech_recognition as sr
 
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
@@ -65,21 +64,8 @@ if "language" not in st.session_state:
 language = st.selectbox("🌐 Choose language", ["en", "hi"])
 translator = Translator()
 
-# ---------------- VOICE INPUT -------------------
-prompt = None
-if st.button("🎤 Use Voice Input"):
-    try:
-        recognizer = sr.Recognizer()
-        with sr.Microphone() as source:
-            st.info("🎙️ Listening...")
-            audio = recognizer.listen(source)
-            prompt = recognizer.recognize_google(audio, language="hi-IN")
-            st.success(f"🗣️ You said: {prompt}")
-    except Exception as e:
-        st.warning(f"🎙️ Voice input failed: {str(e)}")
-
-if not prompt:
-    prompt = st.chat_input("💬 Ask your question from the uploaded files")
+# ---------------- TEXT INPUT ONLY -------------------
+prompt = st.chat_input("💬 Ask your question from the uploaded files")
 
 # ---------------- DISPLAY CHAT -------------------
 for idx, msg in enumerate(st.session_state.user_messages[user_email]):
@@ -209,6 +195,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
