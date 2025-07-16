@@ -14,7 +14,7 @@ from langchain.indexes import VectorstoreIndexCreator
 
 # ---------------- GOOGLE LOGIN AUTH -------------------
 
-user = st.experimental_get_user()
+user = st.experimental_user  # Only works on Streamlit Cloud
 ALLOWED_USERS = ["nishant@example.com", "user1@example.com", "test@example.com"]
 ADMIN_USERS = ["nishant@example.com"]
 
