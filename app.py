@@ -20,6 +20,27 @@ from langchain.indexes import VectorstoreIndexCreator
 
 # ---------------- GOOGLE LOGIN AUTH -------------------
 
+st.set_page_config(page_title="Secure RAG Chatbot", page_icon="🤖", layout="wide")
+st.markdown("""
+    <style>
+        .main {
+            background-color: #f4f4f4;
+        }
+        .stButton>button {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 8px;
+            padding: 8px 16px;
+        }
+        .stTextInput>div>input {
+            border-radius: 10px;
+        }
+        .css-1d391kg, .stChatMessage, .css-1v0mbdj, .css-10trblm, .stTextArea, .stMarkdown {
+            font-family: 'Segoe UI', sans-serif;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 user = getattr(st, "user", None)
 if user is None or not hasattr(user, "email"):
     class MockUser:
@@ -33,8 +54,6 @@ if user.email.lower() not in [email.lower() for email in ALLOWED_USERS]:
     st.error(f"❌ Access denied for {user.email}")
     st.stop()
 
-# ---------------- UI HEADER -------------------
-
 st.title("🤖 Secure RAG Chatbot")
 st.success(f"✅ Logged in as: {user.email}")
 if st.button("🚪 Logout"):
@@ -45,15 +64,16 @@ if st.button("🚪 Logout"):
 # ---------------- ADMIN PANEL -------------------
 
 if user.email.lower() in [email.lower() for email in ADMIN_USERS]:
-    st.sidebar.subheader("👑 Admin Panel")
-    if "user_messages" in st.session_state:
-        selected_user = st.sidebar.selectbox("Select user to view chat:", list(st.session_state.user_messages.keys()))
-        st.sidebar.write("Chat history:")
-        for msg in st.session_state.user_messages[selected_user]:
-            icon = "🧑" if msg['role'] == 'user' else "🤖"
-            st.sidebar.markdown(f"{icon} **{msg['role'].capitalize()}**: {msg['content']}")
-    else:
-        st.sidebar.write("No messages yet.")
+    with st.sidebar:
+        st.subheader("👑 Admin Panel")
+        if "user_messages" in st.session_state:
+            selected_user = st.selectbox("Select user to view chat:", list(st.session_state.user_messages.keys()))
+            st.write("Chat history:")
+            for msg in st.session_state.user_messages[selected_user]:
+                icon = "🧑" if msg['role'] == 'user' else "🤖"
+                st.markdown(f"{icon} **{msg['role'].capitalize()}**: {msg['content']}")
+        else:
+            st.write("No messages yet.")
 
 # ---------------- CHAT MEMORY -------------------
 
@@ -69,19 +89,15 @@ for idx, msg in enumerate(st.session_state.user_messages[user.email]):
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         if msg['role'] == 'assistant':
-            col1, col2, col3, col4 = st.columns([1, 1, 5, 1])
+            col1, col2, col3 = st.columns([1, 1, 6])
             with col1:
                 if st.button("👍", key=f"like_{idx}"):
                     st.session_state.feedback[idx] = "like"
-                    st.toast("✅ Feedback saved: You liked the response.")
+                    st.toast("✅ You liked the response.")
             with col2:
                 if st.button("👎", key=f"dislike_{idx}"):
                     st.session_state.feedback[idx] = "dislike"
-                    st.toast("⚠️ Feedback saved: You disliked the response.")
-            with col3:
-                st.text_input("💬 Comment", key=f"comment_{idx}")
-            with col4:
-                st.button("📋 Copy", on_click=st.code, args=(msg['content'],), key=f"copy_{idx}")
+                    st.toast("⚠️ You disliked the response.")
 
 # ---------------- FILE UPLOAD -------------------
 
@@ -108,7 +124,7 @@ def create_vectorstore_from_files(pdf_files):
 
 # ---------------- CHAT INPUT -------------------
 
-prompt = st.chat_input("Ask your question from the uploaded files")
+prompt = st.chat_input("💬 Ask your question from the uploaded files")
 
 if prompt:
     if not uploaded_files:
@@ -197,16 +213,6 @@ if prompt:
                 server.sendmail(sender_email, receiver_email, msg.as_string())
 
             st.success(f"📧 Chat history emailed to {receiver_email}")
-
-        # ---------------- WHATSAPP / TELEGRAM SHARING -------------------
-        st.subheader("📢 Share on WhatsApp or Telegram")
-        message = urllib.parse.quote(f"Here is my chatbot conversation: https://yourappurl.com/{pdf_filename}")
-
-        whatsapp_link = f"https://wa.me/?text={message}"
-        telegram_link = f"https://t.me/share/url?url=https://yourappurl.com/{pdf_filename}&text={message}"
-
-        st.markdown(f"[Share on WhatsApp 💚]({whatsapp_link})", unsafe_allow_html=True)
-        st.markdown(f"[Share on Telegram 💙]({telegram_link})", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
