@@ -100,9 +100,8 @@ if prompt:
         if vectorstore is None:
             raise Exception("Vectorstore is empty")
 
-        # Only use Groq
-        groq_api_key = os.getenv("GROQ_API_KEY") or "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"
-"
+        # Use Groq API key directly
+        groq_api_key = "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"
         chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
 
         chain = RetrievalQA.from_chain_type(
