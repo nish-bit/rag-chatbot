@@ -42,7 +42,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN -------------------
+# ---------------- LOGIN + SIGNUP -------------------
 
 CREDENTIALS = {
     "User8493@gmail.com": "user8493pass",
@@ -57,19 +57,61 @@ CREDENTIALS = {
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+if "signup_mode" not in st.session_state:
+    st.session_state.signup_mode = False
+
+if "reset_mode" not in st.session_state:
+    st.session_state.reset_mode = False
+
 if not st.session_state.authenticated:
     st.title("🔐 Login to Access Chatbot")
-    email_input = st.text_input("Email")
-    password_input = st.text_input("Password", type="password")
-    if st.button("Login"):
-        email_key = email_input.strip().lower()
-        password = password_input.strip()
-        if email_key in [key.lower() for key in CREDENTIALS] and password == CREDENTIALS[[k for k in CREDENTIALS if k.lower() == email_key][0]]:
-            st.session_state.authenticated = True
-            st.session_state.user_email = [k for k in CREDENTIALS if k.lower() == email_key][0]
-            st.experimental_rerun()
-        else:
-            st.error("❌ Invalid email or password")
+    mode = st.radio("Choose mode:", ["Login", "Sign Up", "Reset Password"])
+
+    if mode == "Sign Up":
+        new_email = st.text_input("New Email")
+        new_password = st.text_input("New Password", type="password")
+        if st.button("Create Account"):
+            if new_email and new_password:
+                email_key = new_email.strip().lower()
+                if email_key in [e.lower() for e in CREDENTIALS]:
+                    st.warning("⚠️ Email already exists.")
+                else:
+                    CREDENTIALS[new_email] = new_password
+                    st.success("✅ Account created! Please login.")
+                    st.experimental_rerun()
+            else:
+                st.warning("Please enter both email and password.")
+
+    elif mode == "Reset Password":
+        reset_email = st.text_input("Enter your registered email")
+        new_reset_password = st.text_input("Enter new password", type="password")
+        if st.button("Reset Password"):
+            reset_email_key = reset_email.strip().lower()
+            matched_email = next((e for e in CREDENTIALS if e.lower() == reset_email_key), None)
+            if matched_email:
+                CREDENTIALS[matched_email] = new_reset_password
+                st.success("✅ Password reset successfully. Please login.")
+                st.experimental_rerun()
+            else:
+                st.error("❌ Email not found.")
+
+    else:
+        email_input = st.text_input("Email")
+        password_input = st.text_input("Password", type="password")
+        if st.button("Login"):
+            email_key = email_input.strip().lower()
+            password = password_input.strip()
+            email_matched = None
+            for stored_email in CREDENTIALS:
+                if stored_email.lower() == email_key:
+                    email_matched = stored_email
+                    break
+            if email_matched and CREDENTIALS[email_matched] == password:
+                st.session_state.authenticated = True
+                st.session_state.user_email = email_matched
+                st.experimental_rerun()
+            else:
+                st.error("❌ Invalid email or password")
     st.stop()
 
 user_email = st.session_state.user_email
@@ -242,9 +284,6 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
-
-
-
 
 
 
