@@ -1,10 +1,9 @@
 streamlit
+fpdf
 langchain
-langchain-community
 langchain-groq
-openai
-sentence-transformers
 pypdf
+transformers
 
 
 
