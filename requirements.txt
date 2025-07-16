@@ -6,6 +6,8 @@ pypdf
 transformers
 SpeechRecognition
 pytesseract
+langchain-community
+
 
 
 
