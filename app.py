@@ -45,6 +45,8 @@ st.markdown("""
 # ---------------- LOGIN -------------------
 
 CREDENTIALS = {
+    "User8493@gmail.com": "user8493pass",
+    "nishantali777@gmail.com": "nishantpass",
     "john.doe@gmail.com": "john123",
     "jane.smith@yahoo.com": "jane456",
     "info@example.com": "info789",
@@ -62,9 +64,9 @@ if not st.session_state.authenticated:
     if st.button("Login"):
         email_key = email_input.strip().lower()
         password = password_input.strip()
-        if email_key in CREDENTIALS and CREDENTIALS[email_key] == password:
+        if email_key in [key.lower() for key in CREDENTIALS] and password == CREDENTIALS[[k for k in CREDENTIALS if k.lower() == email_key][0]]:
             st.session_state.authenticated = True
-            st.session_state.user_email = email_key
+            st.session_state.user_email = [k for k in CREDENTIALS if k.lower() == email_key][0]
             st.experimental_rerun()
         else:
             st.error("❌ Invalid email or password")
@@ -240,6 +242,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
