@@ -4,6 +4,8 @@ langchain
 langchain-groq
 pypdf
 transformers
+SpeechRecognition
+
 
 
 
