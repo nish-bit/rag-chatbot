@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import urllib.parse
-
+import speech_recognition as sr
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -62,11 +62,13 @@ for idx, msg in enumerate(st.session_state.user_messages[user_email]):
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         if msg['role'] == 'assistant':
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns([1, 1, 6])
             with col1:
                 st.button("👍", key=f"like_{idx}")
             with col2:
                 st.button("👎", key=f"dislike_{idx}")
+            with col3:
+                st.code(msg['content'], language='text')
 
 uploaded_files = st.file_uploader("📄 Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
 
@@ -89,112 +91,24 @@ def create_vectorstore_from_files(pdf_files):
         st.error(f"Vectorstore creation error: {e}")
         return None
 
-prompt = st.chat_input("💬 Ask your question from the uploaded files")
+# ---------------- VOICE INPUT -------------------
 
-if prompt:
-    if not uploaded_files:
-        st.warning("📌 Please upload at least one PDF to proceed.")
-        st.stop()
-
-    st.chat_message("user").markdown(prompt)
-    st.session_state.user_messages[user_email].append({"role": "user", "content": prompt})
-
-    try:
-        vectorstore = create_vectorstore_from_files(uploaded_files)
-        if vectorstore is None:
-            raise Exception("Vectorstore is empty")
-
-        groq_api_key = "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"
-        chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
-
-        chain = RetrievalQA.from_chain_type(
-            llm=chat_model,
-            chain_type="stuff",
-            retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
-            return_source_documents=True
-        )
-
-        result = chain({"query": prompt})
-        response = result["result"]
-
-        st.chat_message("assistant").markdown(response)
-        st.session_state.user_messages[user_email].append({"role": "assistant", "content": response})
-
-    except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
-
-
-# ---------------- APP HEADER -------------------
-
-st.title("🤖 Secure RAG Chatbot")
-if st.button("🚪 Logout"):
-    st.session_state.clear()
-    st.experimental_rerun()
-
-# ---------------- ADMIN PANEL -------------------
-
-if user_email.lower() in [email.lower() for email in ADMIN_USERS]:
-    with st.sidebar:
-        st.subheader("👑 Admin Panel")
-        if "user_messages" in st.session_state:
-            selected_user = st.selectbox("Select user to view chat:", list(st.session_state.user_messages.keys()))
-            st.write("Chat history:")
-            for msg in st.session_state.user_messages[selected_user]:
-                icon = "🧑" if msg['role'] == 'user' else "🤖"
-                st.markdown(f"{icon} **{msg['role'].capitalize()}**: {msg['content']}")
-        else:
-            st.write("No messages yet.")
-
-# ---------------- CHAT MEMORY -------------------
-
-if "user_messages" not in st.session_state:
-    st.session_state.user_messages = {}
-if user_email not in st.session_state.user_messages:
-    st.session_state.user_messages[user_email] = []
-
-if "feedback" not in st.session_state:
-    st.session_state.feedback = {}
-
-for idx, msg in enumerate(st.session_state.user_messages[user_email]):
-    with st.chat_message(msg['role']):
-        st.markdown(msg['content'])
-        if msg['role'] == 'assistant':
-            col1, col2, col3 = st.columns([1, 1, 6])
-            with col1:
-                if st.button("👍", key=f"like_{idx}"):
-                    st.session_state.feedback[idx] = "like"
-                    st.toast("✅ You liked the response.")
-            with col2:
-                if st.button("👎", key=f"dislike_{idx}"):
-                    st.session_state.feedback[idx] = "dislike"
-                    st.toast("⚠️ You disliked the response.")
-
-# ---------------- FILE UPLOAD -------------------
-
-uploaded_files = st.file_uploader("📄 Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
-
-@st.cache_resource(show_spinner="🔄 Indexing content...")
-def create_vectorstore_from_files(pdf_files):
-    try:
-        loaders = []
-        for file in pdf_files:
-            path = f"temp_{file.name}"
-            with open(path, "wb") as f:
-                f.write(file.read())
-            loaders.append(PyPDFLoader(path))
-
-        index = VectorstoreIndexCreator(
-            embedding=HuggingFaceEmbeddings(model_name="all-MiniLM-L12-v2"),
-            text_splitter=RecursiveCharacterTextSplitter(chunk_size=100000, chunk_overlap=100)
-        ).from_loaders(loaders)
-        return index.vectorstore
-    except Exception as e:
-        st.error(f"Vectorstore creation error: {e}")
-        return None
-
-# ---------------- CHAT INPUT -------------------
-
-prompt = st.chat_input("💬 Ask your question from the uploaded files")
+if st.button("🎤 Use Voice Input"):
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("🎙️ Listening...")
+        audio = recognizer.listen(source)
+        try:
+            prompt = recognizer.recognize_google(audio, language="hi-IN")
+            st.success(f"🗣️ You said: {prompt}")
+        except sr.UnknownValueError:
+            st.warning("😕 Could not understand audio.")
+            prompt = None
+        except sr.RequestError:
+            st.error("❌ Speech recognition service error.")
+            prompt = None
+else:
+    prompt = st.chat_input("💬 Ask your question from the uploaded files")
 
 if prompt:
     if not uploaded_files:
@@ -286,7 +200,6 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
-
 
 
 
