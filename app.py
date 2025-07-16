@@ -9,6 +9,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+import urllib.parse
 
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
@@ -171,30 +172,45 @@ if prompt:
         st.markdown(href, unsafe_allow_html=True)
 
         # ---------------- EMAIL CHAT HISTORY -------------------
-        sender_email = os.getenv("EMAIL_ADDRESS")
-        sender_password = os.getenv("EMAIL_PASSWORD")
-        receiver_email = user.email
+        st.subheader("📧 Email Chat History")
+        receiver_email = st.text_input("Enter recipient email address", value=user.email)
+        send_email = st.button("Send Email")
 
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = receiver_email
-        msg["Subject"] = "Your Chatbot Conversation History"
-        msg.attach(MIMEText("Attached is your PDF chat history.", "plain"))
+        if send_email:
+            sender_email = os.getenv("EMAIL_ADDRESS")
+            sender_password = os.getenv("EMAIL_PASSWORD")
 
-        with open(pdf_filename, "rb") as f:
-            attach = MIMEApplication(f.read(), _subtype="pdf")
-            attach.add_header("Content-Disposition", "attachment", filename=pdf_filename)
-            msg.attach(attach)
+            msg = MIMEMultipart()
+            msg["From"] = sender_email
+            msg["To"] = receiver_email
+            msg["Subject"] = "Your Chatbot Conversation History"
+            msg.attach(MIMEText("Attached is your PDF chat history.", "plain"))
 
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
+            with open(pdf_filename, "rb") as f:
+                attach = MIMEApplication(f.read(), _subtype="pdf")
+                attach.add_header("Content-Disposition", "attachment", filename=pdf_filename)
+                msg.attach(attach)
 
-        st.success(f"📧 Chat history emailed to {receiver_email}")
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, receiver_email, msg.as_string())
+
+            st.success(f"📧 Chat history emailed to {receiver_email}")
+
+        # ---------------- WHATSAPP / TELEGRAM SHARING -------------------
+        st.subheader("📢 Share on WhatsApp or Telegram")
+        message = urllib.parse.quote(f"Here is my chatbot conversation: https://yourappurl.com/{pdf_filename}")
+
+        whatsapp_link = f"https://wa.me/?text={message}"
+        telegram_link = f"https://t.me/share/url?url=https://yourappurl.com/{pdf_filename}&text={message}"
+
+        st.markdown(f"[Share on WhatsApp 💚]({whatsapp_link})", unsafe_allow_html=True)
+        st.markdown(f"[Share on Telegram 💙]({telegram_link})", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
