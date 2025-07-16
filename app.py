@@ -44,15 +44,7 @@ st.markdown("""
 
 # ---------------- LOGIN + SIGNUP -------------------
 
-CREDENTIALS = {
-    "User8493@gmail.com": "user8493pass",
-    "nishantali777@gmail.com": "nishantpass",
-    "john.doe@gmail.com": "john123",
-    "jane.smith@yahoo.com": "jane456",
-    "info@example.com": "info789",
-    "test.user@hotmail.com": "test000",
-    "admin@company.com": "admin999"
-}
+# ---------------- LOGIN + SIGNUP -------------------
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -67,16 +59,19 @@ if not st.session_state.authenticated:
     st.title("🔐 Login to Access Chatbot")
     mode = st.radio("Choose mode:", ["Login", "Sign Up", "Reset Password"])
 
+    users = load_users()
+
     if mode == "Sign Up":
         new_email = st.text_input("New Email")
         new_password = st.text_input("New Password", type="password")
         if st.button("Create Account"):
             if new_email and new_password:
                 email_key = new_email.strip().lower()
-                if email_key in [e.lower() for e in CREDENTIALS]:
+                if email_key in [e.lower() for e in users]:
                     st.warning("⚠️ Email already exists.")
                 else:
-                    CREDENTIALS[new_email] = new_password
+                    users[new_email] = new_password
+                    save_users(users)
                     st.success("✅ Account created! Please login.")
                     st.experimental_rerun()
             else:
@@ -87,9 +82,10 @@ if not st.session_state.authenticated:
         new_reset_password = st.text_input("Enter new password", type="password")
         if st.button("Reset Password"):
             reset_email_key = reset_email.strip().lower()
-            matched_email = next((e for e in CREDENTIALS if e.lower() == reset_email_key), None)
+            matched_email = next((e for e in users if e.lower() == reset_email_key), None)
             if matched_email:
-                CREDENTIALS[matched_email] = new_reset_password
+                users[matched_email] = new_reset_password
+                save_users(users)
                 st.success("✅ Password reset successfully. Please login.")
                 st.experimental_rerun()
             else:
@@ -102,11 +98,11 @@ if not st.session_state.authenticated:
             email_key = email_input.strip().lower()
             password = password_input.strip()
             email_matched = None
-            for stored_email in CREDENTIALS:
+            for stored_email in users:
                 if stored_email.lower() == email_key:
                     email_matched = stored_email
                     break
-            if email_matched and CREDENTIALS[email_matched] == password:
+            if email_matched and users[email_matched] == password:
                 st.session_state.authenticated = True
                 st.session_state.user_email = email_matched
                 st.experimental_rerun()
@@ -115,12 +111,6 @@ if not st.session_state.authenticated:
     st.stop()
 
 user_email = st.session_state.user_email
-ALLOWED_USERS = list(CREDENTIALS.keys())
-ADMIN_USERS = ["admin@company.com"]
-
-if user_email.lower() not in [email.lower() for email in ALLOWED_USERS]:
-    st.error(f"❌ Access denied for {user_email}")
-    st.stop()
 
 # ---------------- APP HEADER -------------------
 
