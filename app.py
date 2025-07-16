@@ -3,6 +3,8 @@ import warnings
 import logging
 import streamlit as st
 import base64
+from fpdf import FPDF
+from datetime import datetime
 
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
@@ -13,10 +15,7 @@ from langchain.indexes import VectorstoreIndexCreator
 
 # ---------------- GOOGLE LOGIN AUTH -------------------
 
-# Use st.user (future-safe) and fallback for local use
 user = getattr(st, "user", None)
-
-# Fallback for local testing
 if user is None or not hasattr(user, "email"):
     class MockUser:
         email = "test@example.com"
@@ -35,7 +34,8 @@ st.title("🤖 Secure RAG Chatbot")
 st.success(f"✅ Logged in as: {user.email}")
 if st.button("🚪 Logout"):
     st.session_state.clear()
-    st.experimental_rerun()
+    st.experimental_set_query_params(logout=1)
+    st.stop()
 
 # ---------------- ADMIN PANEL -------------------
 
@@ -57,8 +57,23 @@ if "user_messages" not in st.session_state:
 if user.email not in st.session_state.user_messages:
     st.session_state.user_messages[user.email] = []
 
-for msg in st.session_state.user_messages[user.email]:
+if "feedback" not in st.session_state:
+    st.session_state.feedback = {}
+
+for idx, msg in enumerate(st.session_state.user_messages[user.email]):
     st.chat_message(msg['role']).markdown(msg['content'])
+    if msg['role'] == 'assistant':
+        col1, col2, col3 = st.columns([1, 1, 6])
+        with col1:
+            if st.button("👍", key=f"like_{idx}"):
+                st.session_state.feedback[idx] = "like"
+                st.toast("✅ Feedback saved: You liked the response.")
+        with col2:
+            if st.button("👎", key=f"dislike_{idx}"):
+                st.session_state.feedback[idx] = "dislike"
+                st.toast("⚠️ Feedback saved: You disliked the response.")
+        with col3:
+            st.text_input("💬 Comment", key=f"comment_{idx}")
 
 # ---------------- PDF UPLOAD -------------------
 
@@ -100,7 +115,6 @@ if prompt:
         if vectorstore is None:
             raise Exception("Vectorstore is empty")
 
-        # Use Groq API key directly
         groq_api_key = "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"
         chat_model = ChatGroq(api_key=groq_api_key, model_name="llama3-8b-8192")
 
@@ -117,24 +131,41 @@ if prompt:
         st.chat_message("assistant").markdown(response)
         st.session_state.user_messages[user.email].append({"role": "assistant", "content": response})
 
-        # ---------------- SAVE CHAT -------------------
+        # ---------------- SAVE CHAT TO PDF -------------------
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         chat_lines = [
             f"{m['role'].capitalize()}: {m['content']}"
             for m in st.session_state.user_messages[user.email]
         ]
-        history_text = "\n\n".join(chat_lines)
+        uploaded_names = ", ".join([file.name for file in uploaded_files]) if uploaded_files else "None"
+        model_used = "Groq - llama3-8b-8192"
 
-        filename = f"chat_history_{user.email.replace('@', '_at_')}.txt"
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(history_text)
+        pdf_filename = f"chat_history_{user.email.replace('@', '_at_')}.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
 
-        # ---------------- DOWNLOAD BUTTON -------------------
-        b64 = base64.b64encode(history_text.encode()).decode()
-        href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">📥 Download Your Chat History</a>'
+        pdf.cell(0, 10, f"Chat history for {user.email}", ln=True)
+        pdf.cell(0, 10, f"Generated at: {now}", ln=True)
+        pdf.cell(0, 10, f"Model Used: {model_used}", ln=True)
+        pdf.cell(0, 10, f"PDFs Uploaded: {uploaded_names}", ln=True)
+        pdf.ln()
+
+        for line in chat_lines:
+            for subline in line.split("\n"):
+                pdf.multi_cell(0, 10, subline)
+            pdf.ln()
+
+        pdf.output(pdf_filename)
+
+        with open(pdf_filename, "rb") as f:
+            b64_pdf = base64.b64encode(f.read()).decode()
+        href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{pdf_filename}">📄 Download Chat History as PDF</a>'
         st.markdown(href, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
