@@ -14,13 +14,17 @@ from langchain.indexes import VectorstoreIndexCreator
 
 # ---------------- GOOGLE LOGIN AUTH -------------------
 
-user = st.experimental_user  # Only works on Streamlit Cloud
+# Use st.user (future-safe) and fallback for local use
+user = getattr(st, "user", None)
+
+# Fallback for local testing
+if user is None or not hasattr(user, "email"):
+    class MockUser:
+        email = "test@example.com"
+    user = MockUser()
+
 ALLOWED_USERS = ["nishant@example.com", "user1@example.com", "test@example.com"]
 ADMIN_USERS = ["nishant@example.com"]
-
-if user is None:
-    st.warning("🔐 Please log in with your Google account to use this chatbot.")
-    st.stop()
 
 if user.email.lower() not in [email.lower() for email in ALLOWED_USERS]:
     st.error(f"🚫 Access denied for {user.email}")
@@ -143,6 +147,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
