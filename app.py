@@ -12,12 +12,14 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import urllib.parse
 import speech_recognition as sr
+
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.indexes import VectorstoreIndexCreator
+from googletrans import Translator
 
 # ---------------- PAGE CONFIG + STYLE -------------------
 
@@ -45,7 +47,6 @@ st.markdown("""
 # ---------------- CHATBOT FUNCTIONALITY -------------------
 
 st.title("🤖 Secure RAG Chatbot")
-
 st.info("👋 Welcome, guest! You can start chatting after uploading a PDF.")
 
 user_email = "guest@example.com"
@@ -58,9 +59,33 @@ if user_email not in st.session_state.user_messages:
 if "feedback" not in st.session_state:
     st.session_state.feedback = {}
 
+if "language" not in st.session_state:
+    st.session_state.language = "en"
+
+language = st.selectbox("🌐 Choose language", ["en", "hi"])
+translator = Translator()
+
+# ---------------- VOICE INPUT -------------------
+prompt = None
+if st.button("🎤 Use Voice Input"):
+    try:
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            st.info("🎙️ Listening...")
+            audio = recognizer.listen(source)
+            prompt = recognizer.recognize_google(audio, language="hi-IN")
+            st.success(f"🗣️ You said: {prompt}")
+    except Exception as e:
+        st.warning(f"🎙️ Voice input failed: {str(e)}")
+
+if not prompt:
+    prompt = st.chat_input("💬 Ask your question from the uploaded files")
+
+# ---------------- DISPLAY CHAT -------------------
 for idx, msg in enumerate(st.session_state.user_messages[user_email]):
     with st.chat_message(msg['role']):
-        st.markdown(msg['content'])
+        display_text = translator.translate(msg['content'], dest=language).text if language != "en" else msg['content']
+        st.markdown(display_text)
         if msg['role'] == 'assistant':
             col1, col2, col3 = st.columns([1, 1, 6])
             with col1:
@@ -68,7 +93,9 @@ for idx, msg in enumerate(st.session_state.user_messages[user_email]):
             with col2:
                 st.button("👎", key=f"dislike_{idx}")
             with col3:
-                st.code(msg['content'], language='text')
+                st.code(display_text, language='text')
+
+# ---------------- FILE UPLOAD -------------------
 
 uploaded_files = st.file_uploader("📄 Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
 
@@ -91,25 +118,7 @@ def create_vectorstore_from_files(pdf_files):
         st.error(f"Vectorstore creation error: {e}")
         return None
 
-# ---------------- VOICE INPUT -------------------
-
-if st.button("🎤 Use Voice Input"):
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("🎙️ Listening...")
-        audio = recognizer.listen(source)
-        try:
-            prompt = recognizer.recognize_google(audio, language="hi-IN")
-            st.success(f"🗣️ You said: {prompt}")
-        except sr.UnknownValueError:
-            st.warning("😕 Could not understand audio.")
-            prompt = None
-        except sr.RequestError:
-            st.error("❌ Speech recognition service error.")
-            prompt = None
-else:
-    prompt = st.chat_input("💬 Ask your question from the uploaded files")
-
+# ---------------- HANDLE PROMPT -------------------
 if prompt:
     if not uploaded_files:
         st.warning("📌 Please upload at least one PDF to proceed.")
