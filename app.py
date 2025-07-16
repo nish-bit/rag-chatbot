@@ -55,7 +55,6 @@ if user.email.lower() not in [email.lower() for email in ALLOWED_USERS]:
     st.stop()
 
 st.title("🤖 Secure RAG Chatbot")
-st.success(f"✅ Logged in as: {user.email}")
 if st.button("🚪 Logout"):
     st.session_state.clear()
     st.query_params["logout"] = "1"
@@ -189,7 +188,7 @@ if prompt:
 
         # ---------------- EMAIL CHAT HISTORY -------------------
         st.subheader("📧 Email Chat History")
-        receiver_email = st.text_input("Enter recipient email address", value=user.email)
+        receiver_email = st.text_input("Enter recipient email address")
         send_email = st.button("Send Email")
 
         if send_email:
@@ -216,6 +215,7 @@ if prompt:
 
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
