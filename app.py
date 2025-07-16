@@ -5,12 +5,19 @@ import streamlit as st
 import base64
 from fpdf import FPDF
 from datetime import datetime
+import speech_recognition as sr
+from PIL import Image
+import pytesseract
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
 
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
+from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.indexes import VectorstoreIndexCreator
 
 # ---------------- GOOGLE LOGIN AUTH -------------------
@@ -25,7 +32,7 @@ ALLOWED_USERS = ["nishant@example.com", "user1@example.com", "test@example.com"]
 ADMIN_USERS = ["nishant@example.com"]
 
 if user.email.lower() not in [email.lower() for email in ALLOWED_USERS]:
-    st.error(f"🚫 Access denied for {user.email}")
+    st.error(f"❌ Access denied for {user.email}")
     st.stop()
 
 # ---------------- UI HEADER -------------------
@@ -61,33 +68,45 @@ if "feedback" not in st.session_state:
     st.session_state.feedback = {}
 
 for idx, msg in enumerate(st.session_state.user_messages[user.email]):
-    st.chat_message(msg['role']).markdown(msg['content'])
-    if msg['role'] == 'assistant':
-        col1, col2, col3 = st.columns([1, 1, 6])
-        with col1:
-            if st.button("👍", key=f"like_{idx}"):
-                st.session_state.feedback[idx] = "like"
-                st.toast("✅ Feedback saved: You liked the response.")
-        with col2:
-            if st.button("👎", key=f"dislike_{idx}"):
-                st.session_state.feedback[idx] = "dislike"
-                st.toast("⚠️ Feedback saved: You disliked the response.")
-        with col3:
-            st.text_input("💬 Comment", key=f"comment_{idx}")
+    with st.chat_message(msg['role']):
+        st.markdown(msg['content'])
+        if msg['role'] == 'assistant':
+            col1, col2, col3, col4 = st.columns([1, 1, 6, 1])
+            with col1:
+                if st.button("👍", key=f"like_{idx}"):
+                    st.session_state.feedback[idx] = "like"
+                    st.toast("✅ Feedback saved: You liked the response.")
+            with col2:
+                if st.button("👎", key=f"dislike_{idx}"):
+                    st.session_state.feedback[idx] = "dislike"
+                    st.toast("⚠️ Feedback saved: You disliked the response.")
+            with col3:
+                st.text_input("💬 Comment", key=f"comment_{idx}")
+            with col4:
+                st.code(msg['content'], language='text')
 
-# ---------------- PDF UPLOAD -------------------
+# ---------------- FILE UPLOAD -------------------
 
 uploaded_files = st.file_uploader("📄 Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
+image_files = st.file_uploader("🖼️ Upload one or more images (JPG/PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-@st.cache_resource(show_spinner="🔄 Indexing PDFs...")
-def create_vectorstore_from_pdfs(files):
+@st.cache_resource(show_spinner="🔄 Indexing content...")
+def create_vectorstore_from_files(pdf_files, image_files):
     try:
         loaders = []
-        for file in files:
+        for file in pdf_files:
             path = f"temp_{file.name}"
             with open(path, "wb") as f:
                 f.write(file.read())
             loaders.append(PyPDFLoader(path))
+
+        for image_file in image_files:
+            image = Image.open(image_file)
+            text = pytesseract.image_to_string(image, lang='eng+hin')
+            txt_path = f"temp_{image_file.name}.txt"
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(text)
+            loaders.append(TextLoader(txt_path))
 
         index = VectorstoreIndexCreator(
             embedding=HuggingFaceEmbeddings(model_name="all-MiniLM-L12-v2"),
@@ -98,20 +117,41 @@ def create_vectorstore_from_pdfs(files):
         st.error(f"Vectorstore creation error: {e}")
         return None
 
+# ---------------- VOICE TO TEXT -------------------
+
+st.markdown("---")
+st.markdown("### 🎤 Optional: Record your question with voice")
+audio_prompt = ""
+language_code = st.selectbox("Select language for voice input", ["en-IN (English - India)", "hi-IN (Hindi)", "bn-IN (Bengali)", "gu-IN (Gujarati)", "mr-IN (Marathi)", "ta-IN (Tamil)", "te-IN (Telugu)"])
+language_code = language_code.split(" ")[0]  # Extract language code only
+
+if st.button("Start Recording"):
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("🔊 Listening...")
+        audio_data = r.listen(source, phrase_time_limit=5)
+        try:
+            audio_prompt = r.recognize_google(audio_data, language=language_code)
+            st.success(f"🎤 Transcribed: {audio_prompt}")
+        except sr.UnknownValueError:
+            st.warning("Could not understand the audio.")
+        except sr.RequestError:
+            st.error("Could not request results. Check your internet.")
+
 # ---------------- CHAT INPUT -------------------
 
-prompt = st.chat_input("Ask your question from the uploaded PDFs")
+prompt = st.chat_input("Ask your question from the uploaded files") or audio_prompt
 
 if prompt:
-    if not uploaded_files:
-        st.warning("📎 Please upload at least one PDF to proceed.")
+    if not uploaded_files and not image_files:
+        st.warning("📌 Please upload at least one PDF or image to proceed.")
         st.stop()
 
     st.chat_message("user").markdown(prompt)
     st.session_state.user_messages[user.email].append({"role": "user", "content": prompt})
 
     try:
-        vectorstore = create_vectorstore_from_pdfs(uploaded_files)
+        vectorstore = create_vectorstore_from_files(uploaded_files, image_files)
         if vectorstore is None:
             raise Exception("Vectorstore is empty")
 
@@ -137,7 +177,7 @@ if prompt:
             f"{m['role'].capitalize()}: {m['content']}"
             for m in st.session_state.user_messages[user.email]
         ]
-        uploaded_names = ", ".join([file.name for file in uploaded_files]) if uploaded_files else "None"
+        uploaded_names = ", ".join([file.name for file in uploaded_files + image_files]) if uploaded_files or image_files else "None"
         model_used = "Groq - llama3-8b-8192"
 
         pdf_filename = f"chat_history_{user.email.replace('@', '_at_')}.pdf"
@@ -148,7 +188,7 @@ if prompt:
         pdf.cell(0, 10, f"Chat history for {user.email}", ln=True)
         pdf.cell(0, 10, f"Generated at: {now}", ln=True)
         pdf.cell(0, 10, f"Model Used: {model_used}", ln=True)
-        pdf.cell(0, 10, f"PDFs Uploaded: {uploaded_names}", ln=True)
+        pdf.cell(0, 10, f"Files Uploaded: {uploaded_names}", ln=True)
         pdf.ln()
 
         for line in chat_lines:
@@ -163,8 +203,32 @@ if prompt:
         href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{pdf_filename}">📄 Download Chat History as PDF</a>'
         st.markdown(href, unsafe_allow_html=True)
 
+        # ---------------- EMAIL CHAT HISTORY -------------------
+        sender_email = os.getenv("EMAIL_ADDRESS")
+        sender_password = os.getenv("EMAIL_PASSWORD")
+        receiver_email = user.email
+
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = receiver_email
+        msg["Subject"] = "Your Chatbot Conversation History"
+        msg.attach(MIMEText("Attached is your PDF chat history.", "plain"))
+
+        with open(pdf_filename, "rb") as f:
+            attach = MIMEApplication(f.read(), _subtype="pdf")
+            attach.add_header("Content-Disposition", "attachment", filename=pdf_filename)
+            msg.attach(attach)
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+
+        st.success(f"📧 Chat history emailed to {receiver_email}")
+
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
+
 
 
 
