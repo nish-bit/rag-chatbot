@@ -1,6 +1,8 @@
 streamlit
 langchain
 langchain-groq
+langchain-community
 openai
 sentence-transformers
+
 
